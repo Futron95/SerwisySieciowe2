@@ -1,10 +1,14 @@
 package com.example.demo;
 
+import com.itextpdf.text.*;
+import com.itextpdf.text.pdf.BaseFont;
+import com.itextpdf.text.pdf.PdfWriter;
 import com.vaadin.event.dd.acceptcriteria.Not;
 import com.vaadin.server.StreamResource;
 import com.vaadin.server.VaadinRequest;
 import com.vaadin.spring.annotation.SpringUI;
 import com.vaadin.ui.*;
+import org.apache.commons.io.FileUtils;
 import org.apache.fop.apps.Fop;
 import org.apache.fop.apps.FopFactory;
 import org.apache.fop.apps.MimeConstants;
@@ -13,11 +17,15 @@ import javax.xml.transform.Result;
 import javax.xml.transform.Source;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
+import java.io.*;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+
+import org.apache.fop.pdf.PDFWritable;
+
+import static com.itextpdf.text.html.HtmlTags.FONT;
 
 @SpringUI
 public class PageUI extends UI {
@@ -28,7 +36,9 @@ public class PageUI extends UI {
     ArrayList<String> pojazdy, errors;
     Double kosztPrzejazdu, kosztDiet, sumaKosztow;
     DateTimeField dataWyjazdu, dataPowrotu;
-    Label warning;
+    Label warning, digw, digp, cp, wd, przejazd, kosztyPrzejazdow, kosztBiletow, suma, pobranaZaliczka, doWyplaty;
+    Document document;
+    String wyjazd, przyjazd, czasPodrozy, wysokoscDiet;
     @Override
     protected void init(VaadinRequest vaadinRequest)
     {
@@ -70,16 +80,16 @@ public class PageUI extends UI {
         zaliczka = new TextField("Pobrana zaliczka w zł:");
         warning = new Label();
         layout.addComponents(rodzajPojazdu, odleglosc, zaliczka);
-        Label digw = new Label();
-        Label digp = new Label();
-        Label cp = new Label();
-        Label wd = new Label();
-        Label przejazd = new Label();
-        Label kosztyPrzejazdow = new Label();
-        Label kosztBiletow = new Label();
-        Label suma = new Label();
-        Label pobranaZaliczka = new Label();
-        Label doWyplaty = new Label();
+        digw = new Label();
+        digp = new Label();
+        cp = new Label();
+        wd = new Label();
+        przejazd = new Label();
+        kosztyPrzejazdow = new Label();
+        kosztBiletow = new Label();
+        suma = new Label();
+        pobranaZaliczka = new Label();
+        doWyplaty = new Label();
         Button oblicz = new Button("Oblicz");
         oblicz.addClickListener(clickEvent -> {
             if (!validate()) {
@@ -89,17 +99,7 @@ public class PageUI extends UI {
                 };
                 return;
             }
-            digw.setValue("Data i godzina wyjazdu: "+ getNiceDate(dataWyjazdu.getValue()));
-            digp.setValue("Data i godzina powrotu: "+ getNiceDate(dataPowrotu.getValue()));
-            cp.setValue("Czas podróży: "+getDateDifference());
-            wd.setValue("Wysokość diet: "+ getWysokoscDiet());
-            przejazd.setValue(getOpisPrzejazdu());
-            kosztyPrzejazdow.setValue(getKosztyPrzejzadow());
-            kosztBiletow.setValue(getKosztBiletow());
-            suma.setValue(getSuma());
-            pobranaZaliczka.setValue(getPobranaZaliczka());
-            doWyplaty.setValue(getDoWyplaty());
-            setContent(summaryLayout);
+            fillSummary();
         });
         layout.addComponents(oblicz, warning);
         Label wyniki = new Label("Wyniki");
@@ -115,7 +115,40 @@ public class PageUI extends UI {
         powrot.addClickListener(clickEvent -> {
            setContent(layout);
         });
-        summaryLayout.addComponent(powrot);
+        Button zapisz = new Button("Zapisz pdf");
+        zapisz.addClickListener(clickEvent ->{
+           savePDF();
+        });
+        summaryLayout.addComponents(powrot,zapisz);
+    }
+
+    private void fillSummary()
+    {
+            wyjazd = "Data i godzina wyjazdu: " + getNiceDate(dataWyjazdu.getValue());
+            digw.setValue(wyjazd);
+
+            przyjazd = "Data i godzina powrotu: " + getNiceDate(dataPowrotu.getValue());
+            digp.setValue(przyjazd);
+
+            czasPodrozy = "Czas podróży: " + getDateDifference();
+            cp.setValue(czasPodrozy);
+
+            wysokoscDiet = "Wysokość diet: " + getWysokoscDiet();
+            wd.setValue(wysokoscDiet);
+
+            przejazd.setValue(getOpisPrzejazdu());
+
+            kosztyPrzejazdow.setValue(getKosztyPrzejzadow());
+
+            kosztBiletow.setValue(getKosztBiletow());
+
+            suma.setValue(getSuma());
+
+            pobranaZaliczka.setValue(getPobranaZaliczka());
+
+            doWyplaty.setValue(getDoWyplaty());
+
+        setContent(summaryLayout);
     }
 
     private boolean validate()
@@ -157,7 +190,7 @@ public class PageUI extends UI {
         Double wartoscZaliczki=0.0;
         if (!zaliczka.getValue().equals(""))
             wartoscZaliczki=Double.valueOf(zaliczka.getValue());
-        return "Do wypłaty: "+(sumaKosztow-wartoscZaliczki);
+        return "Do wypłaty: "+(sumaKosztow-wartoscZaliczki)+" zł";
     }
 
     private String getPobranaZaliczka() {
@@ -242,4 +275,31 @@ public class PageUI extends UI {
         return sb.toString();
     }
 
+    void savePDF()
+    {
+        document = new Document();
+        try {
+            BaseFont helvetica = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.CP1250, BaseFont.EMBEDDED);
+            Font f=new Font(helvetica,16);
+            PdfWriter.getInstance(document, new FileOutputStream(new File ("dokument.pdf")));
+            document.open();
+            document.add(new Paragraph(wyjazd,f));
+            document.add(new Paragraph(przyjazd,f));
+            document.add(new Paragraph(czasPodrozy,f));
+            document.add(new Paragraph(wysokoscDiet,f));
+            document.add(new Paragraph(getOpisPrzejazdu(),f));
+            document.add(new Paragraph(getKosztyPrzejzadow(),f));
+            document.add(new Paragraph(getKosztBiletow(),f));
+            document.add(new Paragraph(getSuma(),f));
+            document.add(new Paragraph(getPobranaZaliczka(),f));
+            document.add(new Paragraph(getDoWyplaty(),f));
+            document.close();
+        }catch (DocumentException e) {
+            e.printStackTrace();
+        }catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 }
