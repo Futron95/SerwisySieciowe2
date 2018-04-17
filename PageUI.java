@@ -2,8 +2,10 @@ package com.example.demo;
 
 import com.itextpdf.text.*;
 import com.itextpdf.text.pdf.BaseFont;
+import com.itextpdf.text.pdf.PdfDocument;
 import com.itextpdf.text.pdf.PdfWriter;
 import com.vaadin.event.dd.acceptcriteria.Not;
+import com.vaadin.server.FileDownloader;
 import com.vaadin.server.StreamResource;
 import com.vaadin.server.VaadinRequest;
 import com.vaadin.spring.annotation.SpringUI;
@@ -39,6 +41,7 @@ public class PageUI extends UI {
     Label warning, digw, digp, cp, wd, przejazd, kosztyPrzejazdow, kosztBiletow, suma, pobranaZaliczka, doWyplaty;
     Document document;
     String wyjazd, przyjazd, czasPodrozy, wysokoscDiet;
+    Button zapisz;
     @Override
     protected void init(VaadinRequest vaadinRequest)
     {
@@ -100,6 +103,7 @@ public class PageUI extends UI {
                 return;
             }
             fillSummary();
+            preparePdfDownload();
         });
         layout.addComponents(oblicz, warning);
         Label wyniki = new Label("Wyniki");
@@ -115,10 +119,7 @@ public class PageUI extends UI {
         powrot.addClickListener(clickEvent -> {
            setContent(layout);
         });
-        Button zapisz = new Button("Zapisz pdf");
-        zapisz.addClickListener(clickEvent ->{
-           savePDF();
-        });
+        zapisz = new Button("Zapisz pdf");
         summaryLayout.addComponents(powrot,zapisz);
     }
 
@@ -275,31 +276,54 @@ public class PageUI extends UI {
         return sb.toString();
     }
 
-    void savePDF()
-    {
-        document = new Document();
+    private StreamResource createResource() {
+        return new StreamResource(new StreamResource.StreamSource() {
+                @Override
+                public InputStream getStream()
+                {
+                        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    try {
+                        PdfWriter.getInstance(document, bos);
+                        fillPDF();
+                    } catch (DocumentException e) {
+                        e.printStackTrace();
+                    }
+                    return new ByteArrayInputStream(bos.toByteArray());
+                }
+            }
+        , "dokument.pdf");
+    }
+
+    private void fillPDF() {
         try {
             BaseFont helvetica = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.CP1250, BaseFont.EMBEDDED);
-            Font f=new Font(helvetica,16);
-            PdfWriter.getInstance(document, new FileOutputStream(new File ("dokument.pdf")));
+            Font f = new Font(helvetica, 16);
+            document = new Document();
             document.open();
-            document.add(new Paragraph(wyjazd,f));
-            document.add(new Paragraph(przyjazd,f));
-            document.add(new Paragraph(czasPodrozy,f));
-            document.add(new Paragraph(wysokoscDiet,f));
-            document.add(new Paragraph(getOpisPrzejazdu(),f));
-            document.add(new Paragraph(getKosztyPrzejzadow(),f));
-            document.add(new Paragraph(getKosztBiletow(),f));
-            document.add(new Paragraph(getSuma(),f));
-            document.add(new Paragraph(getPobranaZaliczka(),f));
-            document.add(new Paragraph(getDoWyplaty(),f));
+            document.add(new Paragraph(wyjazd, f));
+            document.add(new Paragraph(przyjazd, f));
+            document.add(new Paragraph(czasPodrozy, f));
+            document.add(new Paragraph(wysokoscDiet, f));
+            document.add(new Paragraph(getOpisPrzejazdu(), f));
+            document.add(new Paragraph(getKosztyPrzejzadow(), f));
+            document.add(new Paragraph(getKosztBiletow(), f));
+            document.add(new Paragraph(getSuma(), f));
+            document.add(new Paragraph(getPobranaZaliczka(), f));
+            document.add(new Paragraph(getDoWyplaty(), f));
             document.close();
-        }catch (DocumentException e) {
+        } catch (DocumentException e) {
             e.printStackTrace();
-        }catch (FileNotFoundException e) {
+        } catch (FileNotFoundException e) {
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    private void preparePdfDownload()
+    {
+            StreamResource myResource = createResource();
+            FileDownloader fileDownloader = new FileDownloader(myResource);
+            fileDownloader.extend(zapisz);
     }
 }
