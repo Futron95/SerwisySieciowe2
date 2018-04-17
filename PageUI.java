@@ -283,6 +283,7 @@ public class PageUI extends UI {
                 {
                         ByteArrayOutputStream bos = new ByteArrayOutputStream();
                     try {
+                        document = new Document();
                         PdfWriter.getInstance(document, bos);
                         fillPDF();
                     } catch (DocumentException e) {
@@ -295,10 +296,10 @@ public class PageUI extends UI {
     }
 
     private void fillPDF() {
+        System.out.println("wypelniam");
         try {
             BaseFont helvetica = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.CP1250, BaseFont.EMBEDDED);
             Font f = new Font(helvetica, 16);
-            document = new Document();
             document.open();
             document.add(new Paragraph(wyjazd, f));
             document.add(new Paragraph(przyjazd, f));
